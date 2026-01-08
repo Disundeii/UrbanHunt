@@ -1,7 +1,17 @@
-import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 function Home() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // Check for room parameter in URL and redirect to player join
+  useEffect(() => {
+    const roomParam = searchParams.get('room');
+    if (roomParam) {
+      navigate(`/player?room=${roomParam}`, { replace: true });
+    }
+  }, [searchParams, navigate]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 flex items-center justify-center p-4">

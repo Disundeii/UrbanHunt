@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { QRCode } from 'react-qr-code';
 import { subscribeToPlayers, subscribeToGame, startGame, nextChallenge, CHALLENGES } from '../services/gameService';
 
 function HostLobby() {
@@ -69,11 +70,26 @@ function HostLobby() {
         {/* Room Code Display */}
         <div className="bg-white rounded-2xl shadow-2xl p-8 md:p-12 mb-6 text-center">
           <h2 className="text-2xl text-gray-600 mb-4">Room Code</h2>
-          <div className="text-8xl md:text-9xl font-bold text-gray-800 tracking-wider mb-4">
+          <div className="text-6xl font-bold text-gray-800 tracking-wider mb-6">
             {roomCode}
           </div>
+          
+          {/* QR Code */}
+          {gameState?.status === 'waiting' && (
+            <div className="flex justify-center mb-4">
+              <div className="bg-white p-6 rounded-xl shadow-lg">
+                <QRCode
+                  value={`${window.location.origin}/?room=${roomCode}`}
+                  size={256}
+                  level="H"
+                  style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+                />
+              </div>
+            </div>
+          )}
+          
           <p className="text-gray-500 text-lg">
-            Share this code with your players
+            Share this code with your players or have them scan the QR code
           </p>
         </div>
 

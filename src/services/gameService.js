@@ -141,6 +141,11 @@ export const CHALLENGES = [
   "High five a stranger",
   "Take a selfie with something green",
   "Do 10 jumping jacks",
-  "Find someone wearing the same color shirt as you"
+  "Find someone wearing the same color shirt as you",
+  "Take a selfie with a stranger (ask permission!)",
+  "Find a handheld object that is older than you.",
+  "Film a 5-second video of your team doing a synchronized dance.",
+  "Find something that starts with the first letter of your name.",
+  "Take a creative photo of the sky."
 ];
 

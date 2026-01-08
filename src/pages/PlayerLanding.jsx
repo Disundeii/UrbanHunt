@@ -1,12 +1,21 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { joinGame } from '../services/gameService';
 
 function PlayerLanding() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [roomCode, setRoomCode] = useState('');
   const [playerName, setPlayerName] = useState('');
   const [isJoining, setIsJoining] = useState(false);
+
+  // Check for room parameter in URL and auto-fill
+  useEffect(() => {
+    const roomParam = searchParams.get('room');
+    if (roomParam) {
+      setRoomCode(roomParam.toUpperCase());
+    }
+  }, [searchParams]);
 
   const handleJoin = async (e) => {
     e.preventDefault();
