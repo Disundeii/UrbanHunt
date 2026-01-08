@@ -5,7 +5,15 @@ import {
   updateDoc, 
   onSnapshot
 } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import { 
+  ref, 
+  set, 
+  onDisconnect, 
+  serverTimestamp, 
+  onValue,
+  remove
+} from 'firebase/database';
+import { db, realtimeDb } from '../firebase/config';
 
 // Generate a random 4-letter room code
 export const generateRoomCode = () => {
@@ -42,27 +50,107 @@ export const joinGame = async (roomCode, playerName) => {
   const roomData = roomSnap.data();
   const players = roomData.players || [];
   
-  // Check if player already exists
+  // Check if player already exists (by name)
   const existingPlayer = players.find(p => p.name === playerName);
+  let playerId;
+  
   if (existingPlayer) {
-    return existingPlayer.id;
+    playerId = existingPlayer.id;
+  } else {
+    // Add new player
+    playerId = `player_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    const newPlayer = {
+      id: playerId,
+      name: playerName,
+      joinedAt: new Date().toISOString(),
+    };
+    
+    players.push(newPlayer);
+    
+    await updateDoc(roomRef, {
+      players,
+    });
   }
   
-  // Add new player
-  const playerId = `player_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-  const newPlayer = {
-    id: playerId,
-    name: playerName,
-    joinedAt: new Date().toISOString(),
-  };
-  
-  players.push(newPlayer);
-  
-  await updateDoc(roomRef, {
-    players,
-  });
+  // Set up presence tracking in Realtime Database
+  await setupPlayerPresence(roomCode, playerId);
   
   return playerId;
+};
+
+// Set up player presence tracking with onDisconnect
+export const setupPlayerPresence = async (roomCode, playerId) => {
+  const presenceRef = ref(realtimeDb, `games/${roomCode}/players/${playerId}`);
+  
+  // Set the player as online
+  await set(presenceRef, {
+    online: true,
+    lastSeen: serverTimestamp()
+  });
+  
+  // Set up onDisconnect to remove player when they disconnect
+  onDisconnect(presenceRef).remove();
+  
+  return presenceRef;
+};
+
+// Remove player presence (called when component unmounts)
+export const removePlayerPresence = async (roomCode, playerId) => {
+  const presenceRef = ref(realtimeDb, `games/${roomCode}/players/${playerId}`);
+  await remove(presenceRef);
+  
+  // Also remove from Firestore player list
+  const roomRef = doc(db, 'games', roomCode);
+  const roomSnap = await getDoc(roomRef);
+  
+  if (roomSnap.exists()) {
+    const roomData = roomSnap.data();
+    const players = roomData.players || [];
+    const updatedPlayers = players.filter(p => p.id !== playerId);
+    
+    await updateDoc(roomRef, {
+      players: updatedPlayers,
+    });
+  }
+};
+
+// Remove player from game (kick function)
+export const removePlayer = async (roomCode, playerId) => {
+  // Remove from Firestore
+  const roomRef = doc(db, 'games', roomCode);
+  const roomSnap = await getDoc(roomRef);
+  
+  if (roomSnap.exists()) {
+    const roomData = roomSnap.data();
+    const players = roomData.players || [];
+    const updatedPlayers = players.filter(p => p.id !== playerId);
+    
+    await updateDoc(roomRef, {
+      players: updatedPlayers,
+    });
+  }
+  
+  // Remove from Realtime Database presence
+  const presenceRef = ref(realtimeDb, `games/${roomCode}/players/${playerId}`);
+  await remove(presenceRef);
+};
+
+// Check if player is still in the game (for kicked detection)
+export const checkPlayerInGame = (roomCode, playerId, callback) => {
+  const roomRef = doc(db, 'games', roomCode);
+  
+  const unsubscribe = onSnapshot(roomRef, (doc) => {
+    if (doc.exists()) {
+      const data = doc.data();
+      const players = data.players || [];
+      const playerExists = players.some(p => p.id === playerId);
+      callback(playerExists);
+    } else {
+      callback(false);
+    }
+  });
+  
+  return unsubscribe;
 };
 
 // Start the game

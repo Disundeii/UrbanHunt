@@ -32,8 +32,10 @@ function PlayerLanding() {
 
     setIsJoining(true);
     try {
-      await joinGame(roomCode.toUpperCase(), playerName.trim());
-      navigate(`/player/${roomCode.toUpperCase()}`);
+      const playerId = await joinGame(roomCode.toUpperCase(), playerName.trim());
+      navigate(`/player/${roomCode.toUpperCase()}`, { 
+        state: { playerId, playerName: playerName.trim() } 
+      });
     } catch (error) {
       console.error('Error joining game:', error);
       alert(error.message || 'Failed to join game. Please check the room code.');

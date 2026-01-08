@@ -1,16 +1,54 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { subscribeToGame, CHALLENGES } from '../services/gameService';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { subscribeToGame, checkPlayerInGame, setupPlayerPresence, removePlayerPresence, CHALLENGES } from '../services/gameService';
 
 function PlayerGame() {
   const { roomCode } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [gameState, setGameState] = useState(null);
   const [currentChallenge, setCurrentChallenge] = useState(null);
+  const [playerId, setPlayerId] = useState(null);
+  const [wasKicked, setWasKicked] = useState(false);
 
+  // Get playerId from location state (passed when joining)
   useEffect(() => {
-    const unsubscribe = subscribeToGame(roomCode, (game) => {
+    if (location.state?.playerId) {
+      setPlayerId(location.state.playerId);
+    } else {
+      // If no playerId, redirect to join screen
+      navigate('/player', { 
+        state: { message: 'Please join the game first.' } 
+      });
+    }
+  }, [location.state, navigate]);
+
+  // Set up presence tracking and check for kicked status
+  useEffect(() => {
+    if (!playerId || !roomCode) return;
+
+    // Set up presence tracking with onDisconnect
+    setupPlayerPresence(roomCode, playerId);
+
+    // Check if player is still in the game (for kicked detection)
+    const unsubscribePlayerCheck = checkPlayerInGame(roomCode, playerId, (isInGame) => {
+      if (!isInGame) {
+        setWasKicked(true);
+      }
+    });
+
+    // Listen to game state
+    const unsubscribeGame = subscribeToGame(roomCode, (game) => {
       if (game) {
         setGameState(game);
+        
+        // Check if player is still in the game
+        const players = game.players || [];
+        const playerExists = players.some(p => p.id === playerId);
+        if (!playerExists) {
+          setWasKicked(true);
+          return;
+        }
         
         // Set current challenge if game is playing
         if (game.status === 'playing' && game.currentChallengeIndex >= 0) {
@@ -32,8 +70,39 @@ function PlayerGame() {
       }
     });
 
-    return () => unsubscribe();
-  }, [roomCode]);
+    // Cleanup on unmount
+    return () => {
+      unsubscribeGame();
+      unsubscribePlayerCheck();
+      // Remove presence when component unmounts
+      if (playerId) {
+        removePlayerPresence(roomCode, playerId);
+      }
+    };
+  }, [roomCode, playerId]);
+
+  // Handle kicked state
+  if (wasKicked) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-500 via-pink-500 to-orange-500 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 md:p-12 text-center max-w-md w-full">
+          <div className="text-6xl mb-6">🚪</div>
+          <h2 className="text-3xl font-bold text-gray-800 mb-4">
+            You were removed from the game
+          </h2>
+          <p className="text-gray-600 mb-8">
+            The host has removed you from the game.
+          </p>
+          <button
+            onClick={() => navigate('/player', { state: { roomCode } })}
+            className="bg-gradient-to-r from-pink-600 to-red-600 text-white font-bold py-3 px-8 rounded-xl text-lg hover:from-pink-700 hover:to-red-700 transition-all duration-200"
+          >
+            Join Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!gameState) {
     return (

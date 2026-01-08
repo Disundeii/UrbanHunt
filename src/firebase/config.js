@@ -1,11 +1,13 @@
 // Firebase Configuration
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
+import { getDatabase } from 'firebase/database';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyAgLJffH9LRWHFK284xUgC22-GR20NzPEo",
   authDomain: "wildcard-f9087.firebaseapp.com",
+  databaseURL: "https://wildcard-f9087-default-rtdb.firebaseio.com",
   projectId: "wildcard-f9087",
   storageBucket: "wildcard-f9087.firebasestorage.app",
   messagingSenderId: "773539207120",
@@ -17,6 +19,9 @@ const app = initializeApp(firebaseConfig);
 
 // Initialize Firestore
 export const db = getFirestore(app);
+
+// Initialize Realtime Database (for presence tracking)
+export const realtimeDb = getDatabase(app);
 
 export default app;
 

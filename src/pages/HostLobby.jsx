@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { QRCode } from 'react-qr-code';
-import { subscribeToPlayers, subscribeToGame, startGame, nextChallenge, CHALLENGES } from '../services/gameService';
+import { subscribeToPlayers, subscribeToGame, startGame, nextChallenge, removePlayer, CHALLENGES } from '../services/gameService';
 
 function HostLobby() {
   const { roomCode } = useParams();
@@ -56,6 +56,19 @@ function HostLobby() {
     }
   };
 
+  const handleKickPlayer = async (playerId, playerName) => {
+    if (!window.confirm(`Remove ${playerName} from the game?`)) {
+      return;
+    }
+
+    try {
+      await removePlayer(roomCode, playerId);
+    } catch (error) {
+      console.error('Error removing player:', error);
+      alert('Failed to remove player. Please try again.');
+    }
+  };
+
   // Get current challenge if game is playing
   const currentChallengeIndex = gameState?.currentChallengeIndex ?? -1;
   const currentChallenge = currentChallengeIndex >= 0 && currentChallengeIndex < CHALLENGES.length
@@ -107,14 +120,25 @@ function HostLobby() {
               {players.map((player, index) => (
                 <div
                   key={player.id}
-                  className="bg-gradient-to-r from-purple-100 to-blue-100 rounded-lg p-4 flex items-center"
+                  className="bg-gradient-to-r from-purple-100 to-blue-100 rounded-lg p-4 flex items-center justify-between"
                 >
-                  <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold text-lg mr-4">
-                    {index + 1}
+                  <div className="flex items-center flex-1">
+                    <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold text-lg mr-4">
+                      {index + 1}
+                    </div>
+                    <span className="text-lg font-semibold text-gray-800">
+                      {player.name}
+                    </span>
                   </div>
-                  <span className="text-lg font-semibold text-gray-800">
-                    {player.name}
-                  </span>
+                  {gameState?.status === 'waiting' && (
+                    <button
+                      onClick={() => handleKickPlayer(player.id, player.name)}
+                      className="ml-4 w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center font-bold transition-colors duration-200"
+                      title="Remove player"
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
