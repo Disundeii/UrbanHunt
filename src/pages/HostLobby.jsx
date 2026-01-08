@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { QRCode } from 'react-qr-code';
-import { subscribeToPlayers, subscribeToGame, startGame, nextChallenge, removePlayer, CHALLENGES } from '../services/gameService';
+import { subscribeToPlayers, subscribeToGame, subscribeToPresenceChanges, syncPlayersWithPresence, startGame, nextChallenge, removePlayer, CHALLENGES } from '../services/gameService';
 
 function HostLobby() {
   const { roomCode } = useParams();
@@ -20,9 +20,19 @@ function HostLobby() {
       setGameState(game);
     });
 
+    // Listen to Realtime Database presence changes and sync to Firestore
+    const unsubscribePresence = subscribeToPresenceChanges(roomCode, async (presentPlayerIds) => {
+      // Sync Firestore players with presence every time presence changes
+      await syncPlayersWithPresence(roomCode);
+    });
+
+    // Initial sync
+    syncPlayersWithPresence(roomCode);
+
     return () => {
       unsubscribePlayers();
       unsubscribeGame();
+      unsubscribePresence();
     };
   }, [roomCode]);
 

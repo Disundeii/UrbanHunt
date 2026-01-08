@@ -27,7 +27,8 @@ function PlayerGame() {
   useEffect(() => {
     if (!playerId || !roomCode) return;
 
-    // Set up presence tracking with onDisconnect
+    // Presence is already set up in joinGame, but ensure it's active
+    // Re-establish connection to ensure onDisconnect is active
     setupPlayerPresence(roomCode, playerId);
 
     // Check if player is still in the game (for kicked detection)

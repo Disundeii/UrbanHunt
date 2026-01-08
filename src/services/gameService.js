@@ -11,6 +11,7 @@ import {
   onDisconnect, 
   serverTimestamp, 
   onValue,
+  get,
   remove
 } from 'firebase/database';
 import { db, realtimeDb } from '../firebase/config';
@@ -72,7 +73,8 @@ export const joinGame = async (roomCode, playerName) => {
     });
   }
   
-  // Set up presence tracking in Realtime Database
+  // IMMEDIATELY set up presence tracking with onDisconnect
+  // This must happen as soon as the player joins, before navigation
   await setupPlayerPresence(roomCode, playerId);
   
   return playerId;
@@ -82,14 +84,15 @@ export const joinGame = async (roomCode, playerName) => {
 export const setupPlayerPresence = async (roomCode, playerId) => {
   const presenceRef = ref(realtimeDb, `games/${roomCode}/players/${playerId}`);
   
-  // Set the player as online
+  // CRITICAL: Set up onDisconnect BEFORE setting the value
+  // This ensures the server handles disconnection even if browser crashes
+  onDisconnect(presenceRef).remove();
+  
+  // Set the player as online (this must happen after onDisconnect is registered)
   await set(presenceRef, {
     online: true,
     lastSeen: serverTimestamp()
   });
-  
-  // Set up onDisconnect to remove player when they disconnect
-  onDisconnect(presenceRef).remove();
   
   return presenceRef;
 };
@@ -221,6 +224,56 @@ export const subscribeToPlayers = (roomCode, callback) => {
   });
   
   return unsubscribe;
+};
+
+// Listen to Realtime Database presence and sync to Firestore
+// This should be called by the host to detect disconnections
+export const subscribeToPresenceChanges = (roomCode, callback) => {
+  const presenceRef = ref(realtimeDb, `games/${roomCode}/players`);
+  
+  const unsubscribe = onValue(presenceRef, (snapshot) => {
+    const presenceData = snapshot.val();
+    const presentPlayerIds = presenceData ? Object.keys(presenceData) : [];
+    callback(presentPlayerIds);
+  }, (error) => {
+    console.error('Error listening to presence:', error);
+    callback([]);
+  });
+  
+  return unsubscribe;
+};
+
+// Sync Firestore players with Realtime Database presence
+export const syncPlayersWithPresence = async (roomCode) => {
+  try {
+    // Get current Firestore players
+    const roomRef = doc(db, 'games', roomCode);
+    const roomSnap = await getDoc(roomRef);
+    
+    if (!roomSnap.exists()) return;
+    
+    // Get current Realtime Database presence (one-time read)
+    const presenceRef = ref(realtimeDb, `games/${roomCode}/players`);
+    const presenceSnapshot = await get(presenceRef);
+    const presenceData = presenceSnapshot.val();
+    const presentPlayerIds = presenceData ? Object.keys(presenceData) : [];
+    
+    const currentPlayers = roomSnap.data().players || [];
+    
+    // Filter out players who are no longer present
+    const activePlayers = currentPlayers.filter(player => 
+      presentPlayerIds.includes(player.id)
+    );
+    
+    // Only update if there's a difference
+    if (activePlayers.length !== currentPlayers.length) {
+      await updateDoc(roomRef, {
+        players: activePlayers,
+      });
+    }
+  } catch (error) {
+    console.error('Error syncing presence:', error);
+  }
 };
 
 // Challenge array (hardcoded as requested)
